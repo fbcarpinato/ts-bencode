@@ -6,96 +6,67 @@ type DecodeResult =
   | null;
 
 function decodeString(source: string): [string, string] {
-  let cursor = 0;
-  let length = "";
-
-  while (source[cursor] !== ":") {
-    length += source[cursor];
-    cursor++;
-  }
-
-  cursor++;
+  const lengthEnd = source.indexOf(":");
+  const length = +source.slice(0, lengthEnd);
+  const cursor = lengthEnd + 1;
 
   return [
-    source.slice(cursor, cursor + +length),
-    source.slice(cursor + +length),
+    source.substring(cursor, cursor + length),
+    source.substring(cursor + length),
   ];
 }
 
 function decodeInteger(source: string): [number, string] {
-  let cursor = 0;
-  let number = "";
+  const start = 1;
+  const end = source.indexOf("e", start);
+  const number = +source.slice(start, end);
+  const remaining = source.slice(end + 1);
 
-  source = source.slice(1);
-
-  while (source[cursor] !== "e") {
-    number += source[cursor];
-    cursor++;
-  }
-
-  return [+number, source.slice(cursor + 1)];
+  return [number, remaining];
 }
 
 function decodeList(source: string): [Array<string | number>, string] {
-  let decodedList: Array<string | number> = [];
-
-  let decoding = true;
-
+  const decodedList: Array<string | number> = [];
   source = source.slice(1);
 
-  while (decoding) {
-    const [value, restOfList] = decode(source);
-
-    decodedList = [...decodedList, value as string | number];
-
+  while (source[0] !== "e") {
+    const [value, restOfList] = decodeSubstring(source);
+    decodedList.push(value as string | number);
     source = restOfList;
-
-    decoding = source[0] !== "e";
   }
 
   return [decodedList, source.slice(1)];
 }
 
 function decodeDictionary(source: string): [Record<string, any>, string] {
-  let decodedDictionary: Record<string, any> = {};
-
-  let decoding = true;
-
+  const decodedDictionary: Record<string, any> = {};
   source = source.slice(1);
 
-  while (decoding) {
-    const [key, rest1] = decode(source);
+  while (source[0] !== "e") {
+    const [key, rest1] = decodeSubstring(source);
     source = rest1;
-    const [value, rest2] = decode(source);
+    const [value, rest2] = decodeSubstring(source);
     source = rest2;
 
-    decodedDictionary = {
-      ...decodedDictionary,
-      [key as string]: value,
-    };
-
-    decoding = source !== "e";
+    decodedDictionary[key as string] = value;
   }
 
   return [decodedDictionary, source.slice(1)];
 }
 
-export function decode(source: string): [DecodeResult, string] {
-  if (source[0] === "l") {
-    return decodeList(source);
+function decodeSubstring(source: string): [DecodeResult, string] {
+  switch (source[0]) {
+    case "l":
+      return decodeList(source);
+    case "i":
+      return decodeInteger(source);
+    case "d":
+      return decodeDictionary(source);
+    default:
+      return !isNaN(Number(source[0])) ? decodeString(source) : [null, ""];
   }
+}
 
-  if (source[0] === "i") {
-    return decodeInteger(source);
-  }
-
-  if (source[0] === "d") {
-    return decodeDictionary(source);
-  }
-
-  if (!isNaN(Number(source[0]))) {
-    return decodeString(source);
-  }
-
-  return [null, ""];
+export function decode(source: string): DecodeResult {
+  return decodeSubstring(source)[0];
 }
