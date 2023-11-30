@@ -7,21 +7,38 @@ type DecodeResult =
 
 function decodeString(source: string): [string, string] {
   const lengthEnd = source.indexOf(":");
-  const length = +source.slice(0, lengthEnd);
-  const cursor = lengthEnd + 1;
+  if (lengthEnd === -1) {
+    throw new Error("Invalid string format: missing colon.");
+  }
 
-  return [
-    source.substring(cursor, cursor + length),
-    source.substring(cursor + length),
-  ];
+  const length = +source.slice(0, lengthEnd);
+  if (isNaN(length)) {
+    throw new Error("Invalid string format: non-numeric length.");
+  }
+
+  const cursor = lengthEnd + 1;
+  const string = source.substring(cursor, cursor + length);
+
+  if (!string.length) {
+    throw new Error("Invalid string format: missing string content.");
+  }
+
+  return [string, source.substring(cursor + length)];
 }
 
 function decodeInteger(source: string): [number, string] {
   const start = 1;
   const end = source.indexOf("e", start);
-  const number = +source.slice(start, end);
-  const remaining = source.slice(end + 1);
+  if (end === -1) {
+    throw new Error("Invalid integer format: missing 'e' terminator.");
+  }
 
+  const number = +source.slice(start, end);
+  if (isNaN(number)) {
+    throw new Error("Invalid integer format: non-numeric value.");
+  }
+
+  const remaining = source.slice(end + 1);
   return [number, remaining];
 }
 
@@ -45,6 +62,7 @@ function decodeDictionary(source: string): [Record<string, any>, string] {
   while (source[0] !== "e") {
     const [key, rest1] = decodeSubstring(source);
     source = rest1;
+
     const [value, rest2] = decodeSubstring(source);
     source = rest2;
 
@@ -62,11 +80,21 @@ function decodeSubstring(source: string): [DecodeResult, string] {
       return decodeInteger(source);
     case "d":
       return decodeDictionary(source);
-    default:
-      return !isNaN(Number(source[0])) ? decodeString(source) : [null, ""];
+    default: {
+      if (!isNaN(Number(source[0]))) {
+        return decodeString(source);
+      } else {
+        throw new Error(`Unkown token: '${source[0]}'.`);
+      }
+    }
   }
 }
 
 export function decode(source: string): DecodeResult {
-  return decodeSubstring(source)[0];
+  try {
+    const result = decodeSubstring(source);
+    return result[0];
+  } catch (error: any) {
+    throw new Error(`Decode error: ${error.message}`);
+  }
 }
